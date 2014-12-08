@@ -65,6 +65,9 @@
 # By default the operating system will assign a port.
 # passive-ports = (empty)
 
+# Account separator to be used with Auth 1.0 (eg. USERNAME:ACCOUNT) (optional)
+# account-separator = (empty)
+
 # Auth 2.0 (Keystone), requires keystoneclient
 # keystone-auth = no
 

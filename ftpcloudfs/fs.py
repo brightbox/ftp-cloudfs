@@ -18,6 +18,7 @@ from swiftclient.client import Connection, ClientException, quote, encode_utf8
 from chunkobject import ChunkObject
 from errors import IOSError
 import posixpath
+import urlparse
 from utils import smart_str
 from functools import wraps
 import memcache
@@ -618,7 +619,7 @@ class ObjectStorageFS(object):
     memcache_hosts = None
 
     @translate_objectstorage_error
-    def __init__(self, username, api_key, authurl, keystone=None, hide_part_dir=False, snet=False, insecure=False):
+    def __init__(self, username, api_key, authurl, keystone=None, hide_part_dir=False, snet=False, insecure=False, account_separator=None):
         """
         Create the Object Storage connection.
 
@@ -629,6 +630,7 @@ class ObjectStorageFS(object):
         hider_part_dirt - optional, hide multipart .part files
         snet - optional, use Rackspace's service network
         insecure - optional, allow using servers without checking their SSL certs
+        account_separator - optional, allow specifying account in username for auth 1.0
         """
         self.conn = None
         self.authurl = authurl
@@ -636,6 +638,7 @@ class ObjectStorageFS(object):
         self.hide_part_dir = hide_part_dir
         self.snet = snet
         self.insecure = insecure
+        self.account_separator = account_separator
         # A cache to hold the information from the last listdir
         self._listdir_cache = ListDirCache(self)
         self._cwd = '/'
@@ -650,6 +653,12 @@ class ObjectStorageFS(object):
 
         kwargs = dict(authurl=self.authurl, auth_version="1.0", snet=self.snet)
         tenant_name = None
+
+        if self.account_separator and self.account_separator in username:
+            username, account_name = username.split(self.account_separator, 1)
+            if account_name:
+                kwargs["authurl"] = urlparse.urljoin(self.authurl, account_name)
+                logging.debug("Found account_name %r specified in username, new authurl=%r" % (account_name, kwargs["authurl"]))
 
         if self.keystone:
             if self.keystone['tenant_separator'] in username:

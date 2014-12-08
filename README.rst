@@ -96,6 +96,8 @@ Options:
   --pid-file=PID_FILE   Pid file location when in daemon mode
   --uid=UID             UID to drop the privilige to when in daemon mode
   --gid=GID             GID to drop the privilige to when in daemon mode
+  --account-separator=ACCOUNT_SEPARATOR
+                        Character used to separate username/account in auth 1.0
   --keystone-auth       Use auth 2.0 (Keystone, requires keystoneclient)
   --keystone-region-name=REGION_NAME
                         Region name to be used in auth 2.0
@@ -111,6 +113,11 @@ Options:
 
 The defaults can be changed using a configuration file (by default in
 /etc/ftpcloudfs.conf). Check the example file included in the package.
+
+The optional account-separator option allows the specifying of the
+account name to be used in the url during auth 1.0. The username is
+split on the separator, with the second half being added to end of the
+auth url (e.g: https://auth.url/v1/account-name).
 
 
 CACHE MANAGEMENT

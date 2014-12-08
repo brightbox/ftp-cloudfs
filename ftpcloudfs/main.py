@@ -98,6 +98,7 @@ class Main(object):
                                   'passive-ports': None,
                                   'split-large-files': '0',
                                   'hide-part-dir': 'no',
+                                  'account-separator': None,
                                   # keystone auth 2.0 support
                                   'keystone-auth': False,
                                   'keystone-region-name': None,
@@ -194,6 +195,12 @@ class Main(object):
                           default=self.config.get('ftpcloudfs', 'gid'),
                           help="GID to drop the privilige to when in daemon mode")
 
+        parser.add_option('--account-separator',
+                          type="str",
+                          dest="account_separator",
+                          default=self.config.get('ftpcloudfs', 'account-separator'),
+                          help="Character used to separate username/account in auth 1.0")
+
         parser.add_option('--keystone-auth',
                           action="store_true",
                           dest="keystone",
@@ -248,6 +255,7 @@ class Main(object):
         MyFTPHandler.banner = banner
         ObjectStorageFtpFS.authurl = self.options.authurl
         ObjectStorageFtpFS.insecure = self.options.insecure
+        ObjectStorageFtpFS.account_separator = self.options.account_separator
         ObjectStorageFtpFS.keystone = self.options.keystone
         ObjectStorageFtpFS.memcache_hosts = self.options.memcache
         ObjectStorageFtpFS.hide_part_dir = self.config.getboolean('ftpcloudfs', 'hide-part-dir')
