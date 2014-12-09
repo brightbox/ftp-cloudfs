@@ -1,7 +1,9 @@
+import os
+
 version = '0.30'
 
 default_banner = "ftp-cloudfs %v using pyftpdlib %f ready."
-default_config_file = '/etc/ftpcloudfs.conf'
+default_config_file = os.environ.get('FTPCLOUDFS_CONFIG', '/etc/ftpcloudfs.conf')
 default_address = '127.0.0.1'
 default_port = 2021
 
