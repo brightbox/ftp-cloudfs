@@ -1,6 +1,6 @@
-version = '0.30'
+version = '0.35'
 
-default_banner = "ftp-cloudfs %v using pyftpdlib %f ready."
+default_banner = "ftp-cloudfs %v using pyftpdlib %f (swiftclient %s) ready."
 default_config_file = '/etc/ftpcloudfs.conf'
 default_address = '127.0.0.1'
 default_port = 2021

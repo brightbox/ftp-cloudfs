@@ -3,7 +3,7 @@ FTP Interface to OpenStack Object Storage (Swift)
 =================================================
 
 :Homepage:  https://pypi.python.org/pypi/ftp-cloudfs/
-:Credits:   Copyright 2009--2014 Chmouel Boudjnah <chmouel@chmouel.com>
+:Credits:   Copyright 2009--2016 Chmouel Boudjnah <chmouel@chmouel.com>
 :Licence:   MIT
 
 
@@ -27,7 +27,7 @@ REQUIREMENTS
 ============
 
 - Python 2 >= 2.6
-- python-swiftclient >= 2.0.0 - https://github.com/openstack/python-swiftclient/
+- python-swiftclient >= 2.1.0 - https://github.com/openstack/python-swiftclient/
 - pyftpdlib >= 1.3.0 - http://code.google.com/p/pyftpdlib/
 - python-daemon >= 1.5.5 - http://pypi.python.org/pypi/python-daemon/
 - python-memcache >= 1.45 - http://www.tummy.com/Community/software/python-memcached/
@@ -196,7 +196,7 @@ exceptions contain licensing information in them.
 
 .. _`MIT`: http://en.wikipedia.org/wiki/MIT_License
 
-  Copyright (C) 2009-2014 Chmouel Boudjnah <chmouel@chmouel.com>
+  Copyright (C) 2009-2016 Chmouel Boudjnah <chmouel@chmouel.com>
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -232,3 +232,6 @@ Contributors
 - Konstantin vz'One Enchant <sirkonst@gmail.com>
 - Maxim Mitroshin <mitroshin@selectel.org>
 - Sokolov Ilya <falconmain@gmail.com>
+- John Leach <john@johnleach.co.uk>
+- Vil Surkin <vills@webzilla.com>
+

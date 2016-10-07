@@ -1,3 +1,47 @@
+2016-03-10 Juan J. Martinez <juan@memset.com>
+
+ * 0.35
+ - Fix in large object support for swiftclient > 2.6.0. Thanks to Vil for
+   the report.
+ - Added swiftclient version to the FTP banner.
+
+2015-08-20 Juan J. Martinez <juan@memset.com>
+
+ * 0.34
+ - Fixed a bug introduced in 0.33 that was preventing 0 byte files to be
+   created. Thanks to Vil for the patch.
+
+2015-07-08 Juan J. Martinez <juan@memset.com>
+
+ * 0.33
+ - Fixed a bug in split file support failing to propagate the
+   "insecure" option for self-signed certificates. Thanks to "triton7"
+   for the patch.
+ - Delayed opening connection to Swift when a file is uploaded to avoid
+   connection timeouts in ceirtain conditions. Thanks to Vil for the patch.
+
+2015-02-11 Juan J. Martinez <juan@memset.com>
+
+ * 0.32
+ - Fixes to hide-part-dir by John Leach to support any segment format.
+
+2014-12-11 Juan J. Martinez <juan@memset.com>
+
+ * 0.31
+ - New permit-foreign-addresses configuration token to expose that
+   functionality from pyftpdlib. This is useful when the control
+   connection is proxified. Check the example configuration file for
+   more information. Thanks to Koert van der Veer for the patch.
+ - swiftclient requirement updated to be >= 2.1.0.
+ - Tokens won't be reused in large files support to avoid broken
+   uploads because of expired tokens.
+ - Fixed a bug in large files support with UTF-8 encoded filenames.
+ - Added error translation in two methods of the file emulation. Accessing
+   an unexistent file was resulting in an unhandled exception instead of
+   sending an FTP error to the client. Thanks to John Leach for the report.
+ - A --config command line option has been added to specify an alternative
+   configuration option that will be used instead of the default one in /etc.
+
 2014-10-06 Juan J. Martinez <juan@memset.com>
 
  * 0.30

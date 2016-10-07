@@ -371,6 +371,18 @@ class ObjectStorageFSTest(unittest.TestCase):
         self.assertEqual(self.cnx.getsize("testfile"), 4096)
         self.cnx.remove("testfile")
 
+    def test_listdir_manifest_same_name_as_segment_dir(self):
+        ''' list directory including a manifest file '''
+        content_string = "0" * 1024
+        for i in range(1, 5):
+            self.create_file("testfile/%d" % i, content_string)
+        self.conn.put_object(self.container, "testfile", contents=None, headers={ "x-object-manifest": '%s/testfile' % self.container })
+        self.assertEqual(self.cnx.listdir("."), ["testfile"])
+        self.assertEqual(self.cnx.getsize("testfile"), 0)
+        for i in range(1, 5):
+            self.cnx.remove("testfile/%d" % i)
+        self.cnx.remove("testfile") # magically becomes a file when the segments are deleted
+
     def test_seek_set_resume(self):
         ''' seek/resume functionality (seek_set) '''
         content_string = "This is a chunk of data"*1024
@@ -485,7 +497,7 @@ class ObjectStorageFSTest(unittest.TestCase):
         ''' auto-split of large files '''
         size = 1024**2
         part_size = 64*1024
-        file_name = u"bigfile & \u263a.txt".encode("utf-8")
+        file_name = u"bigfile & \u263a.txt"
         fd = self.cnx.open(file_name, "wb")
         fd.split_size = part_size
         content = ''
@@ -493,8 +505,8 @@ class ObjectStorageFSTest(unittest.TestCase):
             content += chr(part)*4096
             fd.write(chr(part)*4096)
         fd.close()
-        self.assertEqual(self.cnx.listdir("."), [unicode(file_name, "utf-8"),
-                                                 unicode(file_name, "utf-8") + u".part",
+        self.assertEqual(self.cnx.listdir("."), [file_name,
+                                                 file_name + u".part",
                                                  ])
         self.assertEqual(self.cnx.getsize(file_name), size)
         self.cnx.remove(file_name)
@@ -584,6 +596,31 @@ class ObjectStorageFSTest(unittest.TestCase):
       self.cnx.remove(file_name)
       self.cnx.hide_part_dir = False
 
+    def test_large_file_listing_hidden_parts_when_same_name_as_manifest(self):
+        content_string = "0" * 1024
+        for i in range(1, 5):
+            self.create_file("testfile/%d" % i, content_string)
+        self.conn.put_object(self.container, "testfile", contents=None, headers={ "x-object-manifest": '%s/testfile' % self.container })
+        self.cnx.hide_part_dir = True
+        self.assertEqual(self.cnx.listdir("."), ["testfile"])
+        self.assertEqual(self.cnx.getsize("testfile"), 4096)
+        self.cnx.remove("testfile")
+        self.cnx.hide_part_dir = False
+        self.assertEqual(self.cnx.listdir("."), [])
+
+    def test_large_file_listing_hidden_parts_with_non_dir_segments(self):
+        content_string = "0" * 1024
+        for i in range(1, 5):
+            self.create_file("testfile%d" % i, content_string)
+        self.conn.put_object(self.container, "testfile", contents=None, headers={ "x-object-manifest": '%s/testfile' % self.container })
+        self.cnx.hide_part_dir = True
+        self.assertEqual(self.cnx.listdir("."), ["testfile"])
+        self.assertEqual(self.cnx.getsize("testfile"), 4096)
+        self.cnx.remove("testfile")
+        for i in range(1, 5):
+            self.cnx.remove("testfile%d" % i)
+        self.cnx.hide_part_dir = False
+
     def test_large_file_listing_subdir_hidden_parts(self):
       content_string = "x" * 6 * 1024 * 1024
       self.cnx.mkdir("subdir")
@@ -608,6 +645,25 @@ class ObjectStorageFSTest(unittest.TestCase):
       self.cnx.hide_part_dir = False
       #We realy delete hidden .part dir
       self.assertEqual(self.cnx.listdir("."), [])
+
+    def test_large_file_rename_collision(self):
+        content_string = "x" * 6 * 1024 * 1024
+        content_string_2 = "y" * 6 * 1024 * 1024
+        self.create_file_with_split_limit("testfile.txt", content_string, 5)
+        self.assertEqual(len(self.read_file('testfile.txt')), len(content_string))
+        self.cnx.rename("testfile.txt", "testfile2.txt")
+        # upload the file again
+        self.create_file_with_split_limit("testfile.txt", content_string_2, 5)
+        # check the file is there
+        self.assertEqual(self.read_file('testfile.txt'), content_string_2)
+        self.cnx.remove("testfile.txt_01.part/000000")
+        self.cnx.remove("testfile.txt_01.part/000001")
+        self.cnx.remove("testfile.txt")
+        # check we didn't change the old file
+        self.assertEqual(self.read_file('testfile2.txt'), content_string)
+        self.cnx.remove("testfile.txt.part/000000")
+        self.cnx.remove("testfile.txt.part/000001")
+        self.cnx.remove("testfile2.txt")
 
     def tearDown(self):
         # Delete eveything from the container using the API

@@ -14,12 +14,12 @@ import stat
 import logging
 from urllib import unquote
 from errno import EPERM, ENOENT, EACCES, EIO, ENOTDIR, ENOTEMPTY
-from swiftclient.client import Connection, ClientException, quote, encode_utf8
+from swiftclient.client import Connection, ClientException, quote
 from chunkobject import ChunkObject
 from errors import IOSError
 import posixpath
 import urlparse
-from utils import smart_str
+from utils import smart_str, smart_unicode
 from functools import wraps
 import memcache
 import multiprocessing
@@ -156,6 +156,25 @@ class ObjectStorageFD(object):
 
     split_size = 0
 
+    def _find_collisions(self):
+        """Check if there are collisions with a renamed multi-part file"""
+        while True:
+            try:
+                self.conn.head_object(self.container, self.name)
+            except ClientException:
+                # the manifest doesn't exist, check for parts
+                try:
+                    self.conn.head_object(self.container, self.part_name)
+                except ClientException:
+                    # parts not found, no collision
+                    break
+                else:
+                    # collision found
+                    self.part_collision += 1
+            else:
+                # manifest exists so this is an overwrite of an existing multi-part object
+                break
+
     def __init__(self, connection, container, obj, mode):
         self.conn = connection
         self.container = container
@@ -165,6 +184,7 @@ class ObjectStorageFD(object):
         self.total_size = 0
         self.part_size = 0
         self.part = 0
+        self.part_collision = 0
         self.headers = dict()
         self.content_type = mimetypes.guess_type(self.name)[0]
         self.pending_copy_task = None
@@ -184,11 +204,19 @@ class ObjectStorageFD(object):
             logging.debug("read fd %r" % self.name)
         else: # write
             logging.debug("write fd %r" % self.name)
+
+            # check for collisions in case this is a multi-part file
+            if self.split_size:
+                self._find_collisions()
+
             self.obj = ChunkObject(self.conn, self.container, self.name, content_type=self.content_type)
 
     @property
     def part_base_name(self):
-        return "%s.part" % encode_utf8(self.name)
+        base_name = self.name
+        if self.part_collision:
+            base_name = "%s_%02d" % (base_name, self.part_collision)
+        return "%s.part" % base_name
 
     @property
     def part_name(self):
@@ -204,7 +232,8 @@ class ObjectStorageFD(object):
         """
         def copy_task(conn, container, name, part_name, part_base_name):
             # open a new connection
-            conn = ProxyConnection(None, preauthurl=conn.url, preauthtoken=conn.token)
+            url, token = conn.get_auth()
+            conn = ProxyConnection(None, preauthurl=url, preauthtoken=token, insecure=conn.insecure)
             headers = { 'x-copy-from': quote("/%s/%s" % (container, name)) }
             logging.debug("copying first part %r/%r, %r" % (container, part_name, headers))
             try:
@@ -250,7 +279,7 @@ class ObjectStorageFD(object):
                     current_size = len(data)-offs
                 self.part_size += current_size
                 if not self.obj:
-                    self.obj = ChunkObject(self.conn, self.container, self.part_name, content_type=self.content_type)
+                    self.obj = ChunkObject(self.conn, self.container, self.part_name, content_type=self.content_type, reuse_token=False)
                 self.obj.send_chunk(data[offs:offs+current_size])
                 offs += current_size
                 if self.part_size == self.split_size:
@@ -282,6 +311,7 @@ class ObjectStorageFD(object):
         self.closed = True
         self.conn.close()
 
+    @translate_objectstorage_error
     def read(self, size=65536):
         """
         Read data from the object.
@@ -307,6 +337,7 @@ class ObjectStorageFD(object):
         else:
             return buff
 
+    @translate_objectstorage_error
     def seek(self, offset, whence=None):
         """
         Seek in the object.
@@ -465,13 +496,25 @@ class ListDirCache(object):
         logging.debug("total number of objects %s:" % len(objects))
 
         if self.cffs.hide_part_dir:
-            manifests = []
+            manifests = {}
 
         for obj in objects:
             # {u'bytes': 4820,  u'content_type': '...',  u'hash': u'...',  u'last_modified': u'2008-11-05T00:56:00.406565',  u'name': u'new_object'},
             if 'subdir' in obj:
                 # {u'subdir': 'dirname'}
                 obj['name'] = obj['subdir'].rstrip("/")
+
+                # If a manifest and it's segment directory have the
+                # same name then we have to choose which we want to
+                # show, we can't show both. So we choose to keep the
+                # manifest if hide_part_dir is enabled.
+                #
+                # We can do this here because swift returns objects in
+                # alphabetical order so the manifest will come before
+                # its segments.
+                if self.cffs.hide_part_dir and obj['name'] in manifests:
+                    logging.debug("Not adding subdir %s which would overwrite manifest" % obj['name'])
+                    continue
             elif obj.get('bytes') == 0 and obj.get('hash') and obj.get('content_type') != 'application/directory':
                 # if it's a 0 byte file, has a hash and is not a directory, we make an extra call
                 # to check if it's a manifest file and retrieve the real size / hash
@@ -479,7 +522,7 @@ class ListDirCache(object):
                 logging.debug("possible manifest file: %r" % manifest_obj)
                 if 'x-object-manifest' in manifest_obj:
                     if self.cffs.hide_part_dir:
-                        manifests.append(unicode(unquote(manifest_obj['x-object-manifest']), "utf-8"))
+                        manifests[obj['name']] = smart_unicode(unquote(manifest_obj['x-object-manifest']), "utf-8")
                     logging.debug("manifest found: %s" % manifest_obj['x-object-manifest'])
                     obj['hash'] = manifest_obj['etag']
                     obj['bytes'] = int(manifest_obj['content-length'])
@@ -490,11 +533,14 @@ class ListDirCache(object):
 
         if self.cffs.hide_part_dir:
             for manifest in manifests:
-                manifest_container, manifest_obj = parse_fspath('/' + manifest)
+                manifest_container, manifest_obj = parse_fspath('/' + manifests[manifest])
                 if manifest_container == container:
                     for cache_obj in cache.copy():
-                        if manifest_obj == unicode(unquote(os.path.join(path, cache_obj)), "utf-8"):
-                            logging.debug("hidding part dir %r" % manifest_obj)
+                        # hide any manifest segments, but not the manifest itself, if it
+                        # happens to share a prefix with its segments.
+                        if unicode(unquote(cache_obj), "utf-8") != manifest and \
+                           unicode(unquote(os.path.join(path, cache_obj)), "utf-8").startswith(manifest_obj):
+                            logging.debug("hiding manifest %r segment %r" % (manifest, cache_obj))
                             del cache[cache_obj]
 
     def listdir_root(self, cache):
@@ -852,7 +898,7 @@ class ObjectStorageFS(object):
 
         meta = self.conn.head_object(container, name)
         if 'x-object-manifest' in meta:
-            self._remove_path_folder_files(u'/' + unicode(unquote(meta['x-object-manifest']), "utf-8"))
+            self._remove_path_folder_files(u'/' + smart_unicode(unquote(meta['x-object-manifest']), "utf-8"))
         self.conn.delete_object(container, name)
         self._listdir_cache.flush(posixpath.dirname(path))
         return not name
